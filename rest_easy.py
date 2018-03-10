@@ -2,6 +2,7 @@
 from sqlalchemy import create_engine
 from flask_jsonpify import jsonpify
 from flask import Flask
+
 import logging
 import hashlib
 import uuid
@@ -36,37 +37,42 @@ def validate_password(password, email):
 
 
 def check_admin(email):
-    is_admin = False
     ask_database = conn.execute('select * from MainInfo where Email="{0}" and is_admin=1'.format(email))
     check_empty = ask_database.cursor.fetchall()
-    if check_empty:
+    print check_empty
+    if check_empty is not None:
         is_admin = True
-    return is_admin
+        logging.info("admin verified")
+        return is_admin
+    else:
+        is_admin = False
+        return is_admin
 
 
 # BELOW ARE THE ENPOINTS THAT ONLY ADMINS SHOULD BE ALLOWED TO USE
 # TODO CREATE A ADMIN PASSWORD THAT CAN BE USED TO PASS INTO THE ENDPOINT FOR VERIFICATION
 # This will return all users from the database
-@app.route("/display_users/<admin_email>/<admin_password>", methods=["GET"])
+@app.route("/display_all_users/<admin_email>/<admin_password>", methods=["GET"])
 def display_all_users(admin_email, admin_password):
     is_email_admin = check_admin(admin_email)
-    if is_email_admin:
+    if is_email_admin is True:
         is_password_valid = validate_password(admin_password, admin_email)
-        if is_password_valid:
+        if is_password_valid is True:
             query = conn.execute('select * from MainInfo')
             result = {'data': [dict(zip(tuple(query.keys()), i)) for i in query.cursor]}
             return jsonpify(result)
         else:
-            logging.warning("You are not an admin")
+            logging.warning("BAD MAN: You are not an admin")
             return "Not an admin"
     else:
-        logging.warning("You are not an admin")
+        logging.warning("BAD MAN: You are not an admin")
         return "Not an admin"
 
 
 # get data based on the unique email provided
-@app.route("/display_users/<email>", methods=["GET"])
-def display_specific_user(email):
+@app.route("/display_users/<email>/<admin_email>/<admin_password>", methods=["GET"])
+def display_specific_user(email, admin_email, admin_password):
+    is_email_admin = check_admin(admin_email)
     i_exist = does_email_exist(email)
     if i_exist:
         query = conn.execute('select * from MainInfo where Email="{0}"'.format(email))
@@ -78,12 +84,12 @@ def display_specific_user(email):
 
 
 # add new user into the database based on the parameters provided
-@app.route("/create_user/<username>/<email>/<password>", methods=["GET"])
-def create_user(username, email, password):
-    if username.length() != 0 and email.length() != 0:
-        conn.execute('insert into MainInfo values("{0}", "{1}", "{2}");'.format(username, email, hash_password(password)))
-        logging.info("User created with email: {0} and username: {1}".format(email, username))
-        return "data entered"
+@app.route("/create_user/<username>/<email>/<password>/<is_admin>", methods=["GET"])
+def create_user(username, email, password, is_admin):
+
+    conn.execute('insert into MainInfo values("{0}", "{1}", "{2}", "{3}");'.format(username, email, hash_password(password), is_admin))
+    logging.info("User created with email: {0} and username: {1}".format(email, username))
+    return "data entered"
 
 
 # delete a user given their email address
@@ -134,4 +140,4 @@ def change_user_password(old_password, new_password, email):
 
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-    app.run(host='0.0.0.0')
+    app.run(host='0.0.0.0', debug=True)
