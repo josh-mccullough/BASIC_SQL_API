@@ -10,7 +10,7 @@ import sys
 
 conn = create_engine('sqlite:///Users.db').connect()
 app = Flask(__name__)
-salt = uuid.uuid4().hex
+salt = "Magic"
 
 
 def hash_password(password):
@@ -39,7 +39,6 @@ def validate_password(password, email):
 def check_admin(email):
     ask_database = conn.execute('select * from MainInfo where Email="{0}" and is_admin=1'.format(email))
     check_empty = ask_database.cursor.fetchall()
-    print check_empty
     if check_empty is not None:
         is_admin = True
         logging.info("admin verified")
@@ -48,9 +47,6 @@ def check_admin(email):
         is_admin = False
         return is_admin
 
-
-# BELOW ARE THE ENPOINTS THAT ONLY ADMINS SHOULD BE ALLOWED TO USE
-# TODO CREATE A ADMIN PASSWORD THAT CAN BE USED TO PASS INTO THE ENDPOINT FOR VERIFICATION
 # This will return all users from the database
 @app.route("/display_all_users/<admin_email>/<admin_password>", methods=["GET"])
 def display_all_users(admin_email, admin_password):
@@ -70,7 +66,7 @@ def display_all_users(admin_email, admin_password):
 
 
 # get data based on the unique email provided
-@app.route("/display_users/<email>/<admin_email>/<admin_password>", methods=["GET"])
+@app.route("/display_this_user/<email>/<admin_email>/<admin_password>", methods=["GET"])
 def display_specific_user(email, admin_email, admin_password):
     is_email_admin = check_admin(admin_email)
     i_exist = does_email_exist(email)
@@ -84,25 +80,31 @@ def display_specific_user(email, admin_email, admin_password):
 
 
 # add new user into the database based on the parameters provided
-@app.route("/create_user/<username>/<email>/<password>/<is_admin>", methods=["GET"])
-def create_user(username, email, password, is_admin):
-
-    conn.execute('insert into MainInfo values("{0}", "{1}", "{2}", "{3}");'.format(username, email, hash_password(password), is_admin))
-    logging.info("User created with email: {0} and username: {1}".format(email, username))
-    return "data entered"
+@app.route("/create_user/<username>/<email>/<password>/<is_admin>/<admin_email>/<admin_password>", methods=["GET"])
+def create_user(username, email, password, is_admin, admin_email, admin_password):
+    is_email_admin = check_admin(admin_email)
+    if is_email_admin is True:
+        conn.execute('insert into MainInfo values("{0}", "{1}", "{2}", "{3}");'.format(username, email, hash_password(password), is_admin))
+        logging.info("User created with email: {0} and username: {1}".format(email, username))
+        return "data entered"
+    else: 
+        logging.info("You dont have the correct rights to perfrom this action")
+        return "Access denied"
 
 
 # delete a user given their email address
-@app.route("/delete_user/<email>", methods=["GET"])
-def delete_user(email):
-    valid_email = does_email_exist(email)
-    if valid_email:
-        conn.execute('delete from MainInfo where Email="{0}"'.format(email))
-        logging.info("User: {0} Deleted".format(email))
-        return "User deleted"
-    else:
-        logging.warning("Invalid user for deletion")
-        return "User doesn't exist for deletion"
+@app.route("/delete_user/<email>/<admin_email>/<admin_password>", methods=["GET"])
+def delete_user(email, admin_email, admin_password):
+    is_email_admin = check_admin(admin_email)
+    if is_email_admin is True:
+        valid_email = does_email_exist(email)
+        if valid_email:
+            conn.execute('delete from MainInfo where Email="{0}"'.format(email))
+            logging.info("User: {0} Deleted".format(email))
+            return "User deleted"
+        else:
+            logging.warning("Invalid user for deletion")
+            return "User doesn't exist for deletion"
 
 
 # BELOW ARE THE USER AUTHENTICATED CHANGES, THESE ARE THE ONLY CHANGES A USER SHOULD BE ABLE TO MAKE
@@ -140,4 +142,4 @@ def change_user_password(old_password, new_password, email):
 
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-    app.run(host='0.0.0.0', debug=True)
+    app.run(host='0.0.0.0')
