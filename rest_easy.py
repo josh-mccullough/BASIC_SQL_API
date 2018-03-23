@@ -139,6 +139,16 @@ def change_user_password(old_password, new_password, email):
         logging.warning("Invalid email or password")
         return "Invalid email or password"
 
+@app.route("/validate_login/<email>/<password>", methods=["GET"])
+def validate_login(email, password):
+    valid_email = does_email_exist(email)
+    valid_password = validate_password(password, email)
+    if valid_email and valid_password:
+        logging.info("Valid user, should be allowed to log in")
+        return "Valid"
+    else:
+        logging.warning("Invalid email or password")
+        return "Invalid"
 
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
